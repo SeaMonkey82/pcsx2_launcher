@@ -1,0 +1,62 @@
+#!/bin/bash
+## This script makes it possible to user individual per game configuration files for PCSX2.
+## Make sure your default PCSX2_ui.ini has Slot1_Filename set to default.ps2.
+## This script only seems to work correctly with Attract Mode when attract is launched via terminal.
+## Works with PCSX2 1.5.0.
+## Credit to parasven for the RetroPie script that was the basis for this.
+
+pcsx2_ini="$HOME/.config/PCSX2/PCSX2-reg.ini"
+game_configpath="$HOME/.config/PCSX2/game_configs"
+memcardpath="/mnt/storage/emulation/memcards"
+pcsx2_config_default="$HOME/.config/PCSX2/inis"
+fullfilename=$1
+filename=$(basename "$fullfilename")
+title_id="${filename%.*}"
+memcard="$title_id.ps2"
+
+## If no parameter was passed, set default path and exit.
+if [[ ! $1 ]]
+then
+        ## Exchange the configpath
+        sed -i s@"^SettingsFolder=.*"@"SettingsFolder=\"$pcsx2_config_default\""@g "$pcsx2_ini"
+        exit
+fi
+
+## When the config folder does not exist, create it and copy over the default inis from the default ini folder.
+if [[ ! -e "$game_configpath/$title_id"  ]]
+then
+        ## Create folder based on the filename of the game.
+        mkdir -p "$game_configpath/$title_id/"
+        ## Copy over the default inis from default directory for a start.
+        cp -a "$pcsx2_config_default"/*.ini "$game_configpath/$title_id/"
+fi
+
+## If game-specific memory card does not exist, then create it using blank default.
+if [[ ! -e "$memcardpath/$memcard"  ]]
+then
+	## Copy default memcard
+	cp "$memcardpath"/default.ps2 "$memcardpath/$memcard"
+fi
+
+echo "memcard = $memcard"
+
+# Load relevant memory card.
+sed -i "s|default.ps2|$memcard|g" "$game_configpath/$title_id/"PCSX2_ui.ini
+
+# Uncomment and adjust as necessary to change screen resolution
+# xrandr --size 1920x1080
+
+# Launch PCSX2 using the relevant config folder.
+/usr/games/PCSX2 --fullscreen --fullboot --cfgpath="$game_configpath/$title_id" "$1" & 
+
+# Close PCSX2 when Attract Mode's 'Exit Emulator' hotkey is pressed.  
+cleanup() {
+        echo "Caugh Signal ... terminating PCSX2."
+        pkill PCSX2
+	# Uncomment and adjust as necessary to restore screen resolution
+	# xrandr --size 3840x2160
+        exit 
+}
+trap cleanup INT TERM
+read var
+cleanup
